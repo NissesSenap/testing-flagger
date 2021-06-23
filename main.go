@@ -23,6 +23,7 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"github.com/fluxcd/pkg/runtime/logger"
 	"github.com/fluxcd/pkg/runtime/metrics"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
@@ -38,6 +39,7 @@ import (
 
 	testingv1alpha1 "flagger.app/testing/api/v1alpha1"
 	"flagger.app/testing/controllers"
+	"flagger.app/testing/internal/server"
 	"github.com/sethvargo/go-limiter/memorystore"
 	prommetrics "github.com/slok/go-http-metrics/metrics/prometheus"
 	"github.com/slok/go-http-metrics/middleware"
@@ -49,6 +51,7 @@ var (
 	scheme            = runtime.NewScheme()
 	setupLog          = ctrl.Log.WithName("setup")
 	rateLimitInterval = 5 * time.Minute
+	logOptions        logger.Options
 )
 
 func init() {
@@ -73,7 +76,9 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	log := logger.NewLogger(logOptions)
+	ctrl.SetLogger(log)
+	//ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	metricsRecorder := metrics.NewRecorder()
 	crtlmetrics.Registry.MustRegister(metricsRecorder.Collectors()...)
@@ -125,11 +130,13 @@ func main() {
 		}),
 	})
 
-	/*
-		setupLog.Info("starting manager")
-		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-			setupLog.Error(err, "problem running manager")
-			os.Exit(1)
-		}
-	*/
+	eventServer := server.NewEventServer(eventsAddr, log, mgr.GetClient())
+	go eventServer.ListenAndServe(ctx.Done(), eventMdlw, store)
+
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+
 }
