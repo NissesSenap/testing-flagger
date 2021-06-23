@@ -1,0 +1,16 @@
+domain: flagger.app
+layout:
+- go.kubebuilder.io/v3
+projectName: testing-flagger
+repo: flagger.app/testing
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: flagger.app
+  group: testing
+  kind: Test
+  path: flagger.app/testing/api/v1alpha1
+  version: v1alpha1
+version: "3"
