@@ -1,0 +1,119 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: tests.testing.flagger.app
+spec:
+  group: testing.flagger.app
+  names:
+    kind: Test
+    listKind: TestList
+    plural: tests
+    singular: test
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Test is the Schema for the tests API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TestSpec defines the desired state of Test
+            properties:
+              blocking:
+                description: Should the tester start a blocking test or not? Default
+                  true
+                type: boolean
+              certificate:
+                description: Certificate
+                properties:
+                  secretRef:
+                    description: SecretRef holds the name to a secret that contains
+                      a Kubernetes TLS secret.
+                    properties:
+                      name:
+                        description: Name of the referent
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+              tekton:
+                description: Tekton creates a tekton tester that will check the status
+                  of a triggered Tekton PipelineRun.
+                properties:
+                  namespace:
+                    description: The namespace where we will find the Tekton PipelineRun,
+                      defaults to the namespace the CR is created in.
+                    type: string
+                  url:
+                    description: The Tekton eventListener URL
+                    type: string
+                required:
+                - url
+                type: object
+              webhook:
+                description: Webhook creates a webhook tester which will host a endpoint
+                  to receive callBack webhooks.
+                properties:
+                  contentType:
+                    description: content-type header, defaults "application/json".
+                    type: string
+                  headers:
+                    additionalProperties:
+                      type: string
+                    description: Custom headers to add to your webhook
+                    type: object
+                  host:
+                    description: host header, defaults to the deployment service-name.
+                    type: string
+                  protocol:
+                    description: 'What protocol to use when sending the webhook. Valid
+                      values are: - http (default) - http2'
+                    enum:
+                    - grpc
+                    - http
+                    - http2
+                    - tcp
+                    type: string
+                  token:
+                    description: A token to forward with your webhook.
+                    type: string
+                  url:
+                    description: Url where to send the webhook
+                    type: string
+                  userAgent:
+                    description: userAgent header, default "flagger-tester/1.0.0".
+                    type: string
+                type: object
+            type: object
+          status:
+            description: TestStatus defines the observed state of Test
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
