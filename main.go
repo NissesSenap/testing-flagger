@@ -19,26 +19,36 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"github.com/fluxcd/pkg/runtime/metrics"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/fluxcd/pkg/runtime/pprof"
+	"github.com/fluxcd/pkg/runtime/probes"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	crtlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	testingv1alpha1 "flagger.app/testing/api/v1alpha1"
 	"flagger.app/testing/controllers"
+	"github.com/sethvargo/go-limiter/memorystore"
+	prommetrics "github.com/slok/go-http-metrics/metrics/prometheus"
+	"github.com/slok/go-http-metrics/middleware"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	eventsAddr        = ":9090"
+	scheme            = runtime.NewScheme()
+	setupLog          = ctrl.Log.WithName("setup")
+	rateLimitInterval = 5 * time.Minute
 )
 
 func init() {
@@ -65,6 +75,9 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	metricsRecorder := metrics.NewRecorder()
+	crtlmetrics.Registry.MustRegister(metricsRecorder.Collectors()...)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -77,6 +90,9 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	probes.SetupChecks(mgr, setupLog)
+	pprof.SetupHandlers(mgr, setupLog)
 
 	if err = (&controllers.TestReconciler{
 		Client: mgr.GetClient(),
@@ -96,9 +112,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
-	}
+	ctx := ctrl.SetupSignalHandler()
+	store, err := memorystore.New(&memorystore.Config{
+		Interval: rateLimitInterval,
+	})
+
+	setupLog.Info("starting event server", "addr", eventsAddr)
+	eventMdlw := middleware.New(middleware.Config{
+		Recorder: prommetrics.NewRecorder(prommetrics.Config{
+			Prefix:   "gotk_event",
+			Registry: crtlmetrics.Registry,
+		}),
+	})
+
+	/*
+		setupLog.Info("starting manager")
+		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+			setupLog.Error(err, "problem running manager")
+			os.Exit(1)
+		}
+	*/
 }

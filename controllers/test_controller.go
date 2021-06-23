@@ -47,9 +47,14 @@ type TestReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *TestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := log.FromContext(ctx)
 
-	// your logic here
+	var tst testingv1alpha1.Test
+	if err := r.Get(ctx, req.NamespacedName, &tst); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	log.Info(tst.Spec.Tekton.Url)
 
 	return ctrl.Result{}, nil
 }
