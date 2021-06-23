@@ -9,7 +9,6 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.13.0
-	github.com/prometheus/client_golang v1.11.0
 	github.com/sethvargo/go-limiter v0.6.0
 	github.com/slok/go-http-metrics v0.9.0
 	go.uber.org/zap v1.17.0

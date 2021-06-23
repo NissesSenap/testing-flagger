@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/go-logr/logr"
 )
 
 type TaskRunnerInterface interface {
@@ -33,16 +33,16 @@ type TaskRunnerInterface interface {
 }
 
 type TaskRunner struct {
-	logger       *zap.SugaredLogger
+	logger       logr.Logger
 	timeout      time.Duration
 	todoTasks    *sync.Map
 	runningTasks *sync.Map
 	totalExecs   uint64
 }
 
-func NewTaskRunner(logger *zap.SugaredLogger, timeout time.Duration) *TaskRunner {
+func NewTaskRunner(logger logr.Logger, timeout time.Duration) *TaskRunner {
 	return &TaskRunner{
-		logger:       logger,
+		logger:       logger.WithName("task-runner"),
 		todoTasks:    new(sync.Map),
 		runningTasks: new(sync.Map),
 		timeout:      timeout,
@@ -76,7 +76,7 @@ func (tr *TaskRunner) runAll() {
 				// increment the total exec counter
 				atomic.AddUint64(&tr.totalExecs, 1)
 
-				tr.logger.With("canary", t.Canary()).Infof("task starting %s", t)
+				tr.logger.Info(t.Canary(), "Canary command skipped %s is already running", t)
 
 				// run task with the timeout context
 				t.Run(ctx)
@@ -84,7 +84,7 @@ func (tr *TaskRunner) runAll() {
 				// remove task from the running list
 				tr.runningTasks.Delete(t.Hash())
 			} else {
-				tr.logger.With("canary", t.Canary()).Infof("command skipped %s is already running", t)
+				tr.logger.Info(t.Canary(), "Canary command skipped %s is already running", t)
 			}
 		}(task)
 		return true

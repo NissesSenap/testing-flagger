@@ -39,7 +39,7 @@ import (
 
 	testingv1alpha1 "flagger.app/testing/api/v1alpha1"
 	"flagger.app/testing/controllers"
-	"flagger.app/testing/internal/server"
+	"flagger.app/testing/pkg/loadtester"
 	"github.com/sethvargo/go-limiter/memorystore"
 	prommetrics "github.com/slok/go-http-metrics/metrics/prometheus"
 	"github.com/slok/go-http-metrics/middleware"
@@ -51,6 +51,7 @@ var (
 	scheme            = runtime.NewScheme()
 	setupLog          = ctrl.Log.WithName("setup")
 	rateLimitInterval = 5 * time.Minute
+	timeout           = 1 * time.Hour
 	logOptions        logger.Options
 )
 
@@ -121,6 +122,11 @@ func main() {
 	store, err := memorystore.New(&memorystore.Config{
 		Interval: rateLimitInterval,
 	})
+	if err != nil {
+		setupLog.Error(err, "unable to create memorystore")
+	}
+
+	taskRunner := loadtester.NewTaskRunner(log, timeout)
 
 	setupLog.Info("starting event server", "addr", eventsAddr)
 	eventMdlw := middleware.New(middleware.Config{
@@ -130,13 +136,13 @@ func main() {
 		}),
 	})
 
-	eventServer := server.NewEventServer(eventsAddr, log, mgr.GetClient())
-	go eventServer.ListenAndServe(ctx.Done(), eventMdlw, store)
+	gateStorage := loadtester.NewGateStorage("in-memory")
+	eventServer := loadtester.NewEventServer(eventsAddr, log, mgr.GetClient())
+	go eventServer.ListenAndServe(ctx.Done(), eventMdlw, store, taskRunner, gateStorage)
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-
 }
