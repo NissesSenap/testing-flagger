@@ -26,10 +26,11 @@ import (
 
 	flaggerv1 "github.com/fluxcd/flagger/pkg/apis/flagger/v1beta1"
 	"go.uber.org/zap"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // HandleNewTask handles task creation requests
-func HandleNewTask(logger *zap.SugaredLogger, taskRunner TaskRunnerInterface) func(w http.ResponseWriter, r *http.Request) {
+func HandleNewTask(logger *zap.SugaredLogger, taskRunner TaskRunnerInterface, kubeClient client.Client) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -57,6 +58,37 @@ func HandleNewTask(logger *zap.SugaredLogger, taskRunner TaskRunnerInterface) fu
 			rtnCmdOutput := false
 			if rtn, ok := metadata["returnCmdOutput"]; ok {
 				rtnCmdOutput, err = strconv.ParseBool(rtn)
+			}
+
+			// run tekton command (blocking task)
+			if typ == TaskTypeTester {
+				logger.With("canary", payload.Name).Infof("Task name %s", payload.Metadata["name"])
+
+				testerTask := TesterTask{
+					name:         payload.Metadata["name"],
+					kubeClient:   kubeClient,
+					logCmdOutput: true,
+					TaskBase: TaskBase{
+						canary: fmt.Sprintf("%s.%s", payload.Name, payload.Namespace),
+						logger: logger,
+					},
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), taskRunner.Timeout())
+				defer cancel()
+
+				result, err := testerTask.Run(ctx)
+				if !result.ok {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(err.Error()))
+					return
+				}
+
+				w.WriteHeader(http.StatusOK)
+				if rtnCmdOutput {
+					w.Write(result.out)
+				}
+				return
 			}
 
 			// run bash command (blocking task)

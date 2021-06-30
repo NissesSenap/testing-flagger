@@ -231,7 +231,7 @@ func (s *EventServer) ListenAndServe(stopCh <-chan struct{}, mdlw middleware.Mid
 		log.Fatalf("Error creating logger: %v", err)
 	}
 
-	mux.HandleFunc("/", HandleNewTask(zaplogger, taskRunner))
+	mux.HandleFunc("/", HandleNewTask(zaplogger, taskRunner, s.kubeClient))
 	h := std.Handler("", mdlw, mux)
 	srv := &http.Server{
 		Addr:    s.port,
